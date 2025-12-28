@@ -1,0 +1,58 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  airflow-webserver:
+    build: .
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - LOAD_EX=n
+      - EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      # Correction de l'erreur 403 et synchronisation des composants :
+      - AIRFLOW__WEBSERVER__SECRET_KEY=une_cle_tres_secrete_123
+      - AIRFLOW__CORE__FERNET_KEY=7S6Y0vXpX_8X8UvR0_YV8vXpX_8X8UvR0_YV8vXpX_8=
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./data:/opt/airflow/data
+      - ./scripts:/opt/airflow/scripts
+      - ./models:/opt/airflow/models
+      - ./.dvc:/opt/airflow/.dvc
+      - ./dvc.yaml:/opt/airflow/dvc.yaml
+    ports:
+      - "8081:8080"
+    command: webserver
+
+  airflow-scheduler:
+    build: .
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      # La clé doit être IDENTIQUE ici pour que le scheduler et le webserver se fassent confiance
+      - AIRFLOW__WEBSERVER__SECRET_KEY=une_cle_tres_secrete_123
+      - AIRFLOW__CORE__FERNET_KEY=7S6Y0vXpX_8X8UvR0_YV8vXpX_8X8UvR0_YV8vXpX_8=
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./data:/opt/airflow/data
+      - ./scripts:/opt/airflow/scripts
+      - ./models:/opt/airflow/models
+      - ./.dvc:/opt/airflow/.dvc
+      - ./dvc.yaml:/opt/airflow/dvc.yaml
+    command: scheduler
